@@ -1,24 +1,23 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { baseSepolia } from 'wagmi/chains'
-import { parseUnits, toHex, toBytes, keccak256, encodePacked } from 'viem'
+import { parseUnits, keccak256, encodePacked } from 'viem'
 import { CONTRACTS, FACTORY_ABI, USDT_ABI } from '@/lib/contracts'
 
 export function CreateOrder() {
   const { address } = useAccount()
   const contracts   = CONTRACTS[baseSepolia.id]
 
-  const [comprador,  setComprador]  = useState('')
-  const [monto,      setMonto]      = useState('')
-  const [duracion,   setDuracion]   = useState('30')
-  const [step,       setStep]       = useState<'idle' | 'approving' | 'creating' | 'done'>('idle')
-  const [txHash,     setTxHash]     = useState<`0x${string}` | undefined>()
-  const [ordenAddr,  setOrdenAddr]  = useState<string | undefined>()
+  const [comprador, setComprador] = useState('')
+  const [monto,     setMonto]     = useState('')
+  const [duracion,  setDuracion]  = useState('30')
+  const [step,      setStep]      = useState<'idle' | 'approving' | 'creating' | 'done'>('idle')
+  const [txHash,    setTxHash]    = useState<`0x${string}` | undefined>()
 
   const montoWei = monto ? parseUnits(monto, 6) : 0n
 
-  const { data: allowance } = useReadContract({
+  const { data: allowance, refetch: refetchAllowance } = useReadContract({
     address:      contracts.MockUSDT,
     abi:          USDT_ABI,
     functionName: 'allowance',
@@ -38,6 +37,20 @@ export function CreateOrder() {
     hash:  txHash,
     query: { enabled: !!txHash },
   })
+
+  // Cuando la tx se mina, avanzar al siguiente paso
+  useEffect(() => {
+    if (!receipt) return
+    if (step === 'approving') {
+      refetchAllowance()   // recargar allowance para que aparezca el botón "CREAR ORDEN"
+      setStep('idle')
+      setTxHash(undefined)
+    } else if (step === 'creating') {
+      setStep('done')
+      setTxHash(undefined)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [receipt])
 
   const needsApproval = allowance !== undefined && montoWei > 0n && allowance < montoWei
 
@@ -78,14 +91,14 @@ export function CreateOrder() {
         ],
       })
       setTxHash(hash)
-      setStep('done')
+      // NO setStep('done') aquí — esperar a que se mine (useEffect de receipt)
     } catch (e) {
       console.error(e)
       setStep('idle')
     }
   }
 
-  const fee = feeBps && montoWei > 0n ? (montoWei * feeBps) / 10000n : 0n
+  const fee           = feeBps && montoWei > 0n ? (montoWei * feeBps) / 10000n : 0n
   const montoComprador = montoWei > 0n ? montoWei - fee : 0n
 
   return (
@@ -151,13 +164,26 @@ export function CreateOrder() {
           <div className="font-mono text-[11px] text-white/30 text-center py-3">
             Conecta tu wallet para continuar
           </div>
+        ) : step === 'done' ? (
+          <div className="border border-green-500/20 bg-green-500/5 p-4">
+            <p className="font-mono text-[11px] text-green-400 mb-1">Orden creada exitosamente</p>
+            <p className="font-mono text-[10px] text-white/30">
+              El comprador tiene {duracion} minutos para transferir
+            </p>
+            <button
+              onClick={() => { setStep('idle'); setMonto(''); setComprador('') }}
+              className="mt-3 w-full border border-white/10 text-white/50 font-mono text-[10px] tracking-[2px] py-2 hover:border-white/20 transition-colors"
+            >
+              NUEVA ORDEN
+            </button>
+          </div>
         ) : needsApproval ? (
           <button
             onClick={handleApprove}
             disabled={step === 'approving' || !monto}
             className="w-full bg-white/10 hover:bg-white/15 text-white font-mono text-[11px] tracking-[2px] py-3 transition-colors disabled:opacity-40"
           >
-            {step === 'approving' ? 'APROBANDO...' : `APROBAR ${monto || '0'} USDT`}
+            {step === 'approving' ? 'ESPERANDO CONFIRMACIÓN...' : `APROBAR ${monto || '0'} USDT`}
           </button>
         ) : (
           <button
@@ -165,17 +191,8 @@ export function CreateOrder() {
             disabled={step === 'creating' || !monto || !comprador}
             className="w-full bg-[#FF6A00] hover:bg-[#ff7c1a] text-black font-mono font-bold text-[12px] tracking-[2px] py-3 transition-colors disabled:opacity-40"
           >
-            {step === 'creating' ? 'CREANDO ORDEN...' : 'CREAR ORDEN'}
+            {step === 'creating' ? 'ESPERANDO CONFIRMACIÓN...' : 'CREAR ORDEN'}
           </button>
-        )}
-
-        {step === 'done' && (
-          <div className="border border-green-500/20 bg-green-500/5 p-4">
-            <p className="font-mono text-[11px] text-green-400 mb-1">Orden creada exitosamente</p>
-            <p className="font-mono text-[10px] text-white/30">
-              El comprador tiene {duracion} minutos para transferir por Nequi
-            </p>
-          </div>
         )}
       </div>
     </div>
