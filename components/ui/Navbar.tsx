@@ -2,7 +2,7 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useReadContract }  from 'wagmi'
 import { baseSepolia }      from 'wagmi/chains'
-import { CONTRACTS, USDT_ABI, formatUSDT } from '@/lib/contracts'
+import { CONTRACTS, QUANTUM_ENABLED, USDT_ABI, formatUSDT } from '@/lib/contracts'
 import { useAccount }       from 'wagmi'
 
 export function Navbar() {
@@ -27,6 +27,14 @@ export function Navbar() {
           <span className="font-mono text-[9px] tracking-[2px] text-white/20 border border-white/10 px-2 py-0.5">
             BASE SEPOLIA
           </span>
+          {QUANTUM_ENABLED && (
+            <span
+              title="Contratos con firmas post-cuánticas (Lamport) + ECDSA"
+              className="font-mono text-[9px] tracking-[2px] text-[#FF6A00]/80 border border-[#FF6A00]/30 px-2 py-0.5"
+            >
+              QUANTUM-SAFE
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-4">

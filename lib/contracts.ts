@@ -1,11 +1,31 @@
 import { baseSepolia } from 'wagmi/chains'
 
+type Address = `0x${string}`
+
+// v1 (ECDSA). Se usa mientras no estén configuradas las direcciones Quantum.
+const LEGACY = {
+  MockUSDT:      '0x1725cd2965e4D57DB3C60DcB3F7CDD97D86B62A0' as Address,
+  DisputeModule: '0x7E29A04508aaC9Affdcd8F7Ed3e15cd66e1eD408' as Address,
+  EscrowFactory: '0x5F737b9455eC9b823A949DDFCB86f0E934025279' as Address,
+}
+
+// v2 Quantum (ECDSA + Lamport post-cuántico). Direcciones de
+// zynex-contracts/deployments/quantum-84532.json tras `DeployQuantum.s.sol`.
+const QUANTUM_FACTORY = process.env.NEXT_PUBLIC_QUANTUM_ESCROW_FACTORY as Address | undefined
+const QUANTUM_DISPUTE = process.env.NEXT_PUBLIC_QUANTUM_DISPUTE_MODULE as Address | undefined
+const QUANTUM_GUARD   = process.env.NEXT_PUBLIC_QUANTUM_GUARD          as Address | undefined
+
+export const QUANTUM_ENABLED = Boolean(QUANTUM_FACTORY && QUANTUM_DISPUTE && QUANTUM_GUARD)
+
 export const CONTRACTS = {
-  [baseSepolia.id]: {
-    MockUSDT:      '0x1725cd2965e4D57DB3C60DcB3F7CDD97D86B62A0' as `0x${string}`,
-    DisputeModule: '0x7E29A04508aaC9Affdcd8F7Ed3e15cd66e1eD408' as `0x${string}`,
-    EscrowFactory: '0x5F737b9455eC9b823A949DDFCB86f0E934025279' as `0x${string}`,
-  },
+  [baseSepolia.id]: QUANTUM_ENABLED
+    ? {
+        MockUSDT:      LEGACY.MockUSDT,
+        DisputeModule: QUANTUM_DISPUTE!,
+        EscrowFactory: QUANTUM_FACTORY!,
+        QuantumGuard:  QUANTUM_GUARD,
+      }
+    : { ...LEGACY, QuantumGuard: undefined },
 }
 
 export const FACTORY_ABI = [
